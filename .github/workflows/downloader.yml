@@ -1,0 +1,35 @@
+name: Download from URLs & Save to Repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Space-separated list of URLs"
+        required: true
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install aria2
+        run: sudo apt-get update && sudo apt-get install -y aria2
+
+      - name: Download files
+        run: |
+          for url in ${{ github.event.inputs.urls }}; do
+            echo "Downloading $url"
+            aria2c -x 16 -s 16 "$url"
+          done
+
+      - name: Commit files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Downloaded files" || echo "No changes"
+          git push
