@@ -1,0 +1,62 @@
+name: YouTube Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "YouTube video URL"
+        required: true
+        type: string
+      split_size:
+        description: "Split size in MB (0 = no split)"
+        required: false
+        default: "90"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  ytdl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install yt-dlp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip install yt-dlp
+
+      - name: Download YouTube video
+        run: |
+          mkdir -p youtube
+          cd youtube
+          yt-dlp -f "bestvideo+bestaudio/best" ${{ github.event.inputs.url }}
+
+      - name: Split files if needed
+        run: |
+          cd youtube
+          SIZE=${{ github.event.inputs.split_size }}
+          if [ "$SIZE" -gt 0 ]; then
+            for f in *; do
+              if [ -f "$f" ]; then
+                echo "Checking $f"
+                if [ $(stat -c%s "$f") -gt $((SIZE * 1024 * 1024)) ]; then
+                  echo "Splitting $f"
+                  split -b ${SIZE}M "$f" "${f}_part_"
+                  rm "$f"
+                fi
+              fi
+            done
+          fi
+
+      - name: Commit files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add youtube
+          git commit -m "Downloaded YouTube video" || echo "No changes"
+          git push
