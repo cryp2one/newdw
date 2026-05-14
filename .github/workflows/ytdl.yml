@@ -24,24 +24,26 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp
+      - name: Install yt-dlp + ffmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip
+          sudo apt-get install -y python3-pip ffmpeg
           pip install yt-dlp
 
-      - name: Download YouTube video
+      - name: Download YouTube video (force mp4)
         run: |
           mkdir -p youtube
           cd youtube
-          yt-dlp -f "bestvideo+bestaudio/best" ${{ github.event.inputs.url }}
+          yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" \
+                 --merge-output-format mp4 \
+                 ${{ github.event.inputs.url }}
 
       - name: Split files if needed
         run: |
           cd youtube
           SIZE=${{ github.event.inputs.split_size }}
           if [ "$SIZE" -gt 0 ]; then
-            for f in *; do
+            for f in *.mp4; do
               if [ -f "$f" ]; then
                 echo "Checking $f"
                 if [ $(stat -c%s "$f") -gt $((SIZE * 1024 * 1024)) ]; then
