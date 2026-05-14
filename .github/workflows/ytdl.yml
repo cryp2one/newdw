@@ -1,4 +1,4 @@
-name: YouTube Downloader (Proxy Mode)
+name: YouTube Downloader (Stable)
 
 on:
   workflow_dispatch:
@@ -24,11 +24,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp + ffmpeg
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip ffmpeg
-          pip install yt-dlp
+          sudo apt-get install -y python3-pip ffmpeg nodejs
+          pip install yt-dlp requests
 
       - name: Download via Piped proxy
         run: |
