@@ -1,4 +1,4 @@
-name: YouTube Downloader
+name: YouTube Downloader (Proxy Mode)
 
 on:
   workflow_dispatch:
@@ -30,13 +30,16 @@ jobs:
           sudo apt-get install -y python3-pip ffmpeg
           pip install yt-dlp
 
-      - name: Download YouTube video (force mp4)
+      - name: Download via Piped proxy
         run: |
           mkdir -p youtube
           cd youtube
-          yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" \
-                 --merge-output-format mp4 \
-                 ${{ github.event.inputs.url }}
+          yt-dlp \
+            --proxy "https://pipedapi.kavin.rocks" \
+            --extractor-args "youtube:player_client=android" \
+            --merge-output-format mp4 \
+            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" \
+            "${{ github.event.inputs.url }}"
 
       - name: Split files if needed
         run: |
@@ -45,9 +48,7 @@ jobs:
           if [ "$SIZE" -gt 0 ]; then
             for f in *.mp4; do
               if [ -f "$f" ]; then
-                echo "Checking $f"
                 if [ $(stat -c%s "$f") -gt $((SIZE * 1024 * 1024)) ]; then
-                  echo "Splitting $f"
                   split -b ${SIZE}M "$f" "${f}_part_"
                   rm "$f"
                 fi
