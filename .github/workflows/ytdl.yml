@@ -1,4 +1,4 @@
-name: YouTube Downloader1 (Stable)
+name: YouTube Downloader (Stable)
 
 on:
   workflow_dispatch:
@@ -32,25 +32,25 @@ jobs:
           if sudo apt-get install -y python3.12 >/dev/null 2>&1; then
             PY=python3.12
           else
-            sudo apt-get install -y python3.11 python3.11-distutils
+            sudo apt-get install -y python3.11 python3.11-venv
             PY=python3.11
           fi
           echo "Using interpreter: $PY"
-          # Install pip for the chosen interpreter (get-pip.py works even if distutils missing)
-          curl -sS https://bootstrap.pypa.io/get-pip.py | sudo $PY
-          sudo $PY -m pip install --upgrade pip setuptools wheel
 
-      - name: Install yt-dlp and proxy deps into chosen Python
+      - name: Create and activate virtualenv, install deps
         run: |
-          # Use the same interpreter to install packages system-wide
-          sudo $PY -m pip install yt-dlp requests curl_cffi
+          # create venv in workspace (no sudo, no system pip changes)
+          $PY -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip setuptools wheel
+          pip install yt-dlp requests curl_cffi
 
-      - name: Download via Piped proxy (use same Python)
+      - name: Download via Piped proxy (inside venv)
         run: |
+          source .venv/bin/activate
           mkdir -p youtube
           cd youtube
-          # Run yt-dlp with the exact interpreter that has the packages installed
-          $PY -m yt_dlp \
+          python -m yt_dlp \
             --proxy "https://pipedapi.syncpundit.com" \
             --extractor-args "youtube:player_client=android" \
             --merge-output-format mp4 \
@@ -59,6 +59,7 @@ jobs:
 
       - name: Split files if needed
         run: |
+          source .venv/bin/activate
           cd youtube
           SIZE=${{ github.event.inputs.split_size }}
           if [ "$SIZE" -gt 0 ]; then
