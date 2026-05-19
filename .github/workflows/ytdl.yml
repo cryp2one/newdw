@@ -1,4 +1,4 @@
-name: YouTube Downloader (Stable)
+name: YouTube Downloader1 (Stable)
 
 on:
   workflow_dispatch:
@@ -24,18 +24,33 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Python 3.12 + deps
+      - name: Install system packages and choose Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3.12 python3.12-distutils ffmpeg
-          curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.12
-          sudo python3.12 -m pip install yt-dlp requests curl_cffi
+          sudo apt-get install -y curl ffmpeg ca-certificates
+          # Try to install python3.12; if not available, fall back to python3.11
+          if sudo apt-get install -y python3.12 >/dev/null 2>&1; then
+            PY=python3.12
+          else
+            sudo apt-get install -y python3.11 python3.11-distutils
+            PY=python3.11
+          fi
+          echo "Using interpreter: $PY"
+          # Install pip for the chosen interpreter (get-pip.py works even if distutils missing)
+          curl -sS https://bootstrap.pypa.io/get-pip.py | sudo $PY
+          sudo $PY -m pip install --upgrade pip setuptools wheel
 
-      - name: Download via Piped proxy
+      - name: Install yt-dlp and proxy deps into chosen Python
+        run: |
+          # Use the same interpreter to install packages system-wide
+          sudo $PY -m pip install yt-dlp requests curl_cffi
+
+      - name: Download via Piped proxy (use same Python)
         run: |
           mkdir -p youtube
           cd youtube
-          python3.12 -m yt_dlp \
+          # Run yt-dlp with the exact interpreter that has the packages installed
+          $PY -m yt_dlp \
             --proxy "https://pipedapi.syncpundit.com" \
             --extractor-args "youtube:player_client=android" \
             --merge-output-format mp4 \
