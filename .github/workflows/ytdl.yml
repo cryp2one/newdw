@@ -24,57 +24,74 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install system packages and choose Python
+      - name: Install system packages and set Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl ffmpeg ca-certificates
-          # Try to install python3.12; if not available, fall back to python3.11
-          if sudo apt-get install -y python3.12 >/dev/null 2>&1; then
+          sudo apt-get install -y curl ffmpeg ca-certificates git
+
+          # انتخاب Python (اولویت با 3.12)
+          if command -v python3.12 >/dev/null 2>&1; then
             PY=python3.12
           else
             sudo apt-get install -y python3.11 python3.11-venv
             PY=python3.11
           fi
-          echo "Using interpreter: $PY"
 
-      - name: Create and activate virtualenv, install deps
+          echo "Using Python: $PY"
+          echo "PY=$PY" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Create venv and install dependencies
         run: |
-          # create venv in workspace (no sudo, no system pip changes)
           $PY -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip setuptools wheel
           pip install yt-dlp requests curl_cffi
+        shell: bash
 
-      - name: Download via Piped proxy (inside venv)
+      - name: Download via Piped proxy
         run: |
           source .venv/bin/activate
           mkdir -p youtube
           cd youtube
-          python -m yt_dlp \
+
+          yt-dlp \
             --proxy "https://pipedapi.syncpundit.com" \
-            --extractor-args "youtube:player_client=android" \
+            --extractor-args "youtube:player_client=android,web" \
             --merge-output-format mp4 \
-            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4" \
+            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best" \
+            --no-warnings \
             "${{ github.event.inputs.url }}"
+        shell: bash
 
       - name: Split files if needed
         run: |
           source .venv/bin/activate
           cd youtube
           SIZE=${{ github.event.inputs.split_size }}
+          
           if [ "$SIZE" -gt 0 ]; then
             for f in *.mp4; do
               if [ -f "$f" ]; then
-                split -b ${SIZE}M "$f" "${f}_part_"
+                echo "Splitting $f into ${SIZE}MB parts..."
+                split -b ${SIZE}M "$f" "${f%.mp4}_part_"
                 rm "$f"
               fi
             done
           fi
+        shell: bash
 
-      - name: Commit files
+      - name: Commit and push files
         run: |
-          git config user.name "github-actions"
+          git config user.name "github-actions[bot]"
           git config user.email "actions@github.com"
-          git add youtube
-          git commit -m "Downloaded YouTube video" || echo "No changes"
-          git push
+          
+          if git diff --quiet youtube/; then
+            echo "No new files to commit"
+          else
+            git add youtube/
+            git commit -m "Downloaded YouTube video - $(date +'%Y-%m-%d %H:%M:%S')"
+            git push
+            echo "✅ Video downloaded and committed"
+          fi
+        shell: bash
